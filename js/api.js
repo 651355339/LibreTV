@@ -57,6 +57,9 @@ async function handleApiRequest(url) {
                     item.source_name = source === 'custom' ? '自定义源' : API_SITES[source].name;
                     item.source_code = source;
                     // 对于自定义源，添加API URL信息
+                    if (item.cover) {
+                        item.cover = convertCoverToWebp(item.cover);
+                    }
                     if (source === 'custom') {
                         item.api_url = customApi;
                     }
@@ -400,6 +403,7 @@ async function handleAggregatedSearch(searchQuery) {
             // 为搜索结果添加源信息
             const results = data.list.map(item => ({
                 ...item,
+                cover: convertCoverToWebp(item.cover),
                 source_name: API_SITES[source].name,
                 source_code: source
             }));
@@ -514,6 +518,7 @@ async function handleMultipleCustomSearch(searchQuery, customApiUrls) {
             // 为搜索结果添加源信息
             const results = data.list.map(item => ({
                 ...item,
+                 cover: convertCoverToWebp(item.cover),
                 source_name: `${CUSTOM_API_CONFIG.namePrefix}${index+1}`,
                 source_code: 'custom',
                 api_url: apiUrl // 保存API URL以便详情获取
@@ -634,3 +639,9 @@ async function testSiteAvailability(apiUrl) {
         return false;
     }
 }
+// 统一将图片后缀转换为 webp
+function convertCoverToWebp(url) {
+    if (!url || typeof url !== 'string') return url;
+    return url.replace(/\.(jpg|jpeg|png)(\?.*)?$/i, '.webp');
+}
+
