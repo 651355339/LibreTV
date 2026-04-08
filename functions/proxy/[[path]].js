@@ -246,16 +246,41 @@ export async function onRequest(context) {
         return `/proxy/${encodeURIComponent(targetUrl)}`;
     }
 
-    // 获取远程内容及其类型
-    async function fetchContentWithType(targetUrl) {
+    function isTextBasedContentType(contentType = '') {
+        const normalized = contentType.toLowerCase();
+        return normalized.startsWith('text/') ||
+            normalized.includes('application/json') ||
+            normalized.includes('application/javascript') ||
+            normalized.includes('application/x-javascript') ||
+            normalized.includes('application/xml') ||
+            normalized.includes('application/vnd.apple.mpegurl') ||
+            normalized.includes('application/x-mpegurl') ||
+            normalized.includes('audio/mpegurl');
+    }
+
+    function buildUpstreamHeaders(targetUrl) {
+        const target = new URL(targetUrl);
         const headers = new Headers({
             'User-Agent': getRandomUserAgent(),
             'Accept': '*/*',
-            // 尝试传递一些原始请求的头信息
             'Accept-Language': request.headers.get('Accept-Language') || 'zh-CN,zh;q=0.9,en;q=0.8',
-            // 尝试设置 Referer 为目标网站的域名，或者传递原始 Referer
-            'Referer': request.headers.get('Referer') || new URL(targetUrl).origin
+            'Referer': request.headers.get('Referer') || target.origin
         });
+
+        if (target.hostname.endsWith('doubanio.com')) {
+            headers.set('Referer', 'https://movie.douban.com/');
+            headers.set('Accept', 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8');
+        } else if (target.hostname.endsWith('douban.com')) {
+            headers.set('Referer', 'https://movie.douban.com/');
+            headers.set('Accept', 'application/json, text/plain, */*');
+        }
+
+        return headers;
+    }
+
+    // 获取远程内容及其类型
+    async function fetchContentWithType(targetUrl) {
+        const headers = buildUpstreamHeaders(targetUrl);
 
         try {
             // 直接请求目标 URL
@@ -269,11 +294,12 @@ export async function onRequest(context) {
                  throw new Error(`HTTP error ${response.status}: ${response.statusText}. URL: ${targetUrl}. Body: ${errorBody.substring(0, 150)}`);
             }
 
-            // 读取响应内容为文本
-            const content = await response.text();
             const contentType = response.headers.get('Content-Type') || '';
-            logDebug(`请求成功: ${targetUrl}, Content-Type: ${contentType}, 内容长度: ${content.length}`);
-            return { content, contentType, responseHeaders: response.headers }; // 同时返回原始响应头
+            const textLike = isTextBasedContentType(contentType);
+            const body = textLike ? await response.text() : await response.arrayBuffer();
+            const bodyLength = textLike ? body.length : body.byteLength;
+            logDebug(`请求成功: ${targetUrl}, Content-Type: ${contentType}, 内容长度: ${bodyLength}`);
+            return { body, contentType, responseHeaders: response.headers, textLike };
 
         } catch (error) {
              logDebug(`请求彻底失败: ${targetUrl}: ${error.message}`);
@@ -539,14 +565,14 @@ export async function onRequest(context) {
         }
 
         // --- 实际请求 ---
-        const { content, contentType, responseHeaders } = await fetchContentWithType(targetUrl);
+        const { body, contentType, responseHeaders, textLike } = await fetchContentWithType(targetUrl);
 
         // --- 写入缓存 (KV) ---
-        if (kvNamespace) {
+        if (kvNamespace && textLike) {
              try {
                  const headersToCache = {};
                  responseHeaders.forEach((value, key) => { headersToCache[key.toLowerCase()] = value; });
-                 const cacheValue = { body: content, headers: JSON.stringify(headersToCache) };
+                 const cacheValue = { body, headers: JSON.stringify(headersToCache) };
                  // 注意 KV 写入限制
                  waitUntil(kvNamespace.put(cacheKey, JSON.stringify(cacheValue), { expirationTtl: CACHE_TTL }));
                  logDebug(`已将原始内容写入缓存: ${targetUrl}`);
@@ -557,9 +583,9 @@ export async function onRequest(context) {
         }
 
         // --- 处理响应 ---
-        if (isM3u8Content(content, contentType)) {
+        if (textLike && isM3u8Content(body, contentType)) {
             logDebug(`内容是 M3U8，开始处理: ${targetUrl}`);
-            const processedM3u8 = await processM3u8Content(targetUrl, content, 0, env);
+            const processedM3u8 = await processM3u8Content(targetUrl, body, 0, env);
             return createM3u8Response(processedM3u8);
         } else {
             logDebug(`内容不是 M3U8 (类型: ${contentType})，直接返回: ${targetUrl}`);
@@ -569,7 +595,7 @@ export async function onRequest(context) {
             finalHeaders.set("Access-Control-Allow-Origin", "*");
             finalHeaders.set("Access-Control-Allow-Methods", "GET, HEAD, POST, OPTIONS");
             finalHeaders.set("Access-Control-Allow-Headers", "*");
-            return createResponse(content, 200, finalHeaders);
+            return createResponse(body, 200, finalHeaders);
         }
 
     } catch (error) {
