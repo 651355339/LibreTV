@@ -118,6 +118,27 @@ function isValidUrl(urlString) {
   }
 }
 
+function buildProxyRequestHeaders(targetUrl) {
+  const headers = {
+    'User-Agent': config.userAgent
+  };
+
+  try {
+    const { hostname } = new URL(targetUrl);
+    if (hostname.endsWith('doubanio.com')) {
+      headers.Referer = 'https://movie.douban.com/';
+      headers.Accept = 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8';
+    } else if (hostname.endsWith('douban.com')) {
+      headers.Referer = 'https://movie.douban.com/';
+      headers.Accept = 'application/json, text/plain, */*';
+    }
+  } catch {
+    // URL validated earlier; ignore header specialization failures.
+  }
+
+  return headers;
+}
+
 // 验证代理请求的鉴权
 function validateProxyAuth(req) {
   const authHash = req.query.auth;
@@ -183,9 +204,7 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
           url: targetUrl,
           responseType: 'stream',
           timeout: config.timeout,
-          headers: {
-            'User-Agent': config.userAgent
-          }
+          headers: buildProxyRequestHeaders(targetUrl)
         });
       } catch (error) {
         if (retries < maxRetries) {
