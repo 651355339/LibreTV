@@ -177,7 +177,9 @@ function hidePasswordModal() {
         // 如果启用豆瓣区域则显示豆瓣区域
         if (localStorage.getItem('doubanEnabled') === 'true') {
             document.getElementById('doubanArea').classList.remove('hidden');
-            initDouban();
+            if (typeof updateDoubanVisibility === 'function') {
+                updateDoubanVisibility();
+            }
         }
     }
 }

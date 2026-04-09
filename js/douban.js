@@ -52,9 +52,28 @@ let doubanMovieTvCurrentSwitch = 'movie';
 let doubanCurrentTag = '热门';
 let doubanPageStart = 0;
 const doubanPageSize = 16; // 一次显示的项目数量
+let doubanInitialized = false;
+let doubanRequestId = 0;
 
 // 初始化豆瓣功能
 function initDouban() {
+    if (doubanInitialized) {
+        updateDoubanVisibility();
+        return;
+    }
+
+    // 加载用户标签
+    loadUserTags();
+
+    // 渲染电影/电视剧切换
+    renderDoubanMovieTvSwitch();
+    
+    // 渲染豆瓣标签
+    renderDoubanTags();
+    
+    // 换一批按钮事件监听
+    setupDoubanRefreshBtn();
+
     // 设置豆瓣开关的初始状态
     const doubanToggle = document.getElementById('doubanToggle');
     if (doubanToggle) {
@@ -86,30 +105,13 @@ function initDouban() {
             // 更新显示状态
             updateDoubanVisibility();
         });
-        
-        // 初始更新显示状态
-        updateDoubanVisibility();
 
         // 滚动到页面顶部
         window.scrollTo(0, 0);
     }
 
-    // 加载用户标签
-    loadUserTags();
-
-    // 渲染电影/电视剧切换
-    renderDoubanMovieTvSwitch();
-    
-    // 渲染豆瓣标签
-    renderDoubanTags();
-    
-    // 换一批按钮事件监听
-    setupDoubanRefreshBtn();
-    
-    // 初始加载热门内容
-    if (localStorage.getItem('doubanEnabled') === 'true') {
-        renderRecommend(doubanCurrentTag, doubanPageSize, doubanPageStart);
-    }
+    doubanInitialized = true;
+    updateDoubanVisibility();
 }
 
 // 根据设置更新豆瓣区域的显示状态
@@ -410,6 +412,7 @@ function fetchDoubanTags() {
 function renderRecommend(tag, pageLimit, pageStart) {
     const container = document.getElementById("douban-results");
     if (!container) return;
+    const requestId = ++doubanRequestId;
 
     const loadingOverlayHTML = `
         <div class="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-10">
@@ -428,9 +431,15 @@ function renderRecommend(tag, pageLimit, pageStart) {
     // 使用通用请求函数
     fetchDoubanData(target)
         .then(async data => {
+            if (requestId !== doubanRequestId) {
+                return;
+            }
             await renderDoubanCards(data, container);
         })
         .catch(error => {
+            if (requestId !== doubanRequestId) {
+                return;
+            }
             console.error("获取豆瓣数据失败：", error);
             container.innerHTML = `
                 <div class="col-span-full text-center py-8">
