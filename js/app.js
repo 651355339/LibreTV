@@ -10,6 +10,9 @@ let currentEpisodes = [];
 let currentVideoTitle = '';
 // 全局变量用于倒序状态
 let episodesReversed = false;
+// 分类快捷搜索
+const SEARCH_CATEGORIES = ['动作片', '喜剧片', '爱情片', '科幻片', '恐怖片', '悬疑片', '剧情片', '动画片', '纪录片', '国产剧', '港台剧', '韩剧', '美剧', '日剧', '综艺', '动漫'];
+let selectedSearchCategory = '';
 
 // 页面初始化
 document.addEventListener('DOMContentLoaded', function () {
@@ -24,6 +27,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // 渲染搜索历史
     renderSearchHistory();
+
+    // 渲染分类快捷搜索
+    renderSearchCategories();
 
     // 设置默认API选择（如果是第一次加载）
     if (!localStorage.getItem('hasInitializedDefaults')) {
@@ -106,6 +112,43 @@ function initAPICheckboxes() {
 
     // 初始检查成人内容状态
     checkAdultAPIsSelected();
+}
+
+// 渲染分类快捷搜索标签
+function renderSearchCategories() {
+    const categoryContainer = document.getElementById('categorySearches');
+    if (!categoryContainer) return;
+
+    categoryContainer.innerHTML = `
+        <div class="flex items-center gap-2 min-w-max">
+            <span class="text-sm text-gray-500 flex-shrink-0">分类</span>
+            ${SEARCH_CATEGORIES.map(category => {
+                const isActive = selectedSearchCategory === category;
+                return `
+                    <button type="button"
+                            class="category-search-tag ${isActive ? 'active' : ''}"
+                            onclick="searchByCategory('${category}')"
+                            aria-pressed="${isActive}">
+                        ${category}
+                    </button>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+// 使用分类作为关键词发起搜索
+function searchByCategory(category) {
+    if (!SEARCH_CATEGORIES.includes(category)) return;
+
+    selectedSearchCategory = category;
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.value = category;
+        toggleClearButton();
+    }
+    renderSearchCategories();
+    search();
 }
 
 // 添加成人API列表
