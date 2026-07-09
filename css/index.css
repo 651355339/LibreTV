@@ -75,26 +75,6 @@
     border-color: rgba(59, 130, 246, 0.4);
 }
 
-/* 分类快捷搜索 */
-.category-search-tag {
-    flex-shrink: 0;
-    padding: 0.35rem 0.8rem;
-    background: #151515;
-    border: 1px solid #333;
-    border-radius: 9999px;
-    color: #d1d5db;
-    font-size: 0.875rem;
-    line-height: 1.25rem;
-    transition: all 0.2s ease;
-}
-
-.category-search-tag:hover,
-.category-search-tag.active {
-    background: #ffffff;
-    border-color: #ffffff;
-    color: #000000;
-}
-
 /* 豆瓣区域样式 */
 .douban-container {
     margin: 2rem auto;
